@@ -1,47 +1,52 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-from crawler import NewsCrawler
-from scraper_scrapy import ScrapyNewsCrawler
-from scraper_beautifulsoup import BeautifulSoupScraper  # <-- NEW IMPORT
 import asyncio
 import logging
+
+# IMPORT YOUR SCRAPERS
+from crawler import NewsCrawler
+from scraper_scrapy import ScrapyNewsCrawler
+from scraper_beautifulsoup import BeautifulSoupScraper
 from scraper_crawl4ai_file import Crawl4AICSVFileScraper
-from scraper_firecrawl import FirecrawlScraper  # <-- NEW IMPORT
-
-
-
-
-
+from scraper_firecrawl import FirecrawlScraper
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Create the FastAPI app
 app = FastAPI()
 
-# CORS settings remain the same
+# For LOCAL DEV, allow local origins on port 5173, etc.
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Define request models
 class CrawlRequest(BaseModel):
     url: str
 
-
-# New request model for Firecrawl, which also needs an apiKey
 class FirecrawlRequest(BaseModel):
     url: str
     apiKey: str
 
-
+# ------------------ ENDPOINTS ------------------ #
 
 @app.post("/api/crawl4ai")
 async def crawl_endpoint(request: CrawlRequest):
+    """
+    Async crawler using aiohttp + BeautifulSoup (from crawler.py).
+    """
     try:
         crawler = NewsCrawler()
         results = await crawler.crawl_site(request.url)
@@ -50,8 +55,12 @@ async def crawl_endpoint(request: CrawlRequest):
         logger.error(f"Error during crawl4ai: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.post("/api/scrapy")
 async def scrapy_endpoint(request: CrawlRequest):
+    """
+    Scrapy-based crawler using a separate process (scraper_scrapy.py).
+    """
     try:
         crawler = ScrapyNewsCrawler()
         results = await crawler.crawl_site(request.url)
@@ -61,69 +70,63 @@ async def scrapy_endpoint(request: CrawlRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
-
 @app.post("/api/beautifulSoup")
 async def beautiful_soup_endpoint(request: CrawlRequest):
     """
-    Endpoint for scraping a URL with requests + BeautifulSoup in a synchronous manner.
-    We wrap it using asyncio.to_thread() for concurrency.
+    A synchronous requests + BeautifulSoup approach (scraper_beautifulsoup.py)
+    wrapped with asyncio.to_thread() for concurrency.
     """
     try:
         logger.info(f"Handling BeautifulSoup scrape for URL: {request.url}")
         scraper = BeautifulSoupScraper()
-        # Run the synchronous scrape in a thread
         results = await asyncio.to_thread(scraper.scrape_site, request.url)
+
         if results.get('status') == 'failed':
-            # Return a 500 if scraping failed
             raise HTTPException(status_code=500, detail=results.get('error'))
 
         return {"status": "success", "data": results}
+
     except Exception as e:
         logger.error(f"Error during BeautifulSoup scrape: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
-
 @app.post("/api/crawl4aiFile")
 async def crawl4ai_file_endpoint(request: CrawlRequest):
+    """
+    Reuses the Async crawler but also saves the output to a file
+    (scraper_crawl4ai_file.py).
+    """
     try:
         scraper = Crawl4AICSVFileScraper(output_dir="outputs")
         results = await scraper.scrape_and_save(request.url)
-        
+
         if results.get('status') == 'failed':
             raise HTTPException(status_code=500, detail=results.get('error'))
 
         return {"status": "success", "data": results}
+
     except Exception as e:
         logger.error(f"Error during crawl4aiFile: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
-
 @app.post("/api/firecrawl")
 async def firecrawl_endpoint(request: FirecrawlRequest):
     """
-    Endpoint that calls FirecrawlScraper, passing the user's API key
-    for authentication. We'll run the synchronous requests code in
-    a thread so it doesn't block the FastAPI event loop.
+    Scraper for Firecrawl, requiring an API key (scraper_firecrawl.py).
+    Also uses asyncio.to_thread for concurrency.
     """
     try:
         logger.info(f"Handling Firecrawl for URL: {request.url}")
-        
-        # Initialize the scraper with the user's API key
         scraper = FirecrawlScraper(api_key=request.apiKey)
-        
-        # Because FirecrawlScraper uses requests (synchronous),
-        # we run it in a thread for concurrency
         results = await asyncio.to_thread(scraper.scrape_site, request.url)
-        
+
         if results.get('status') == 'failed':
             raise HTTPException(status_code=500, detail=results.get('error'))
 
         return {"status": "success", "data": results}
+
     except Exception as e:
         logger.error(f"Error during Firecrawl: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -131,4 +134,7 @@ async def firecrawl_endpoint(request: FirecrawlRequest):
 
 @app.get("/health")
 async def health_check():
+    """
+    Simple health check endpoint.
+    """
     return {"status": "healthy", "message": "Server is running"}

@@ -1,48 +1,39 @@
 import { useState } from 'react';
 
 function App() {
+  // State
   const [url, setUrl] = useState('');
   const [selectedMethods, setSelectedMethods] = useState({
     crawl4ai: false,
     scrapy: false,
     beautifulSoup: false,
     crawl4aiFile: false,
-    firecrawl: false
+    firecrawl: false,
   });
   const [apiKey, setApiKey] = useState('');
   const [results, setResults] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // For LOCAL DEV, point to your local FastAPI server:
+  // If your FastAPI runs on "http://127.0.0.1:8000", set it below:
+  const BASE_URL = 'http://127.0.0.1:8000';
+
   const scrapingMethods = [
     { id: 'crawl4ai', label: 'crawl4ai with AsyncWebCrawler' },
     { id: 'scrapy', label: 'Scrapy (Full Web Crawling Framework)' },
     { id: 'beautifulSoup', label: 'BeautifulSoup + Requests' },
     { id: 'crawl4aiFile', label: 'crawl4ai + Saving to File' },
-    { id: 'firecrawl', label: 'Firecrawl', requiresApiKey: true }
+    { id: 'firecrawl', label: 'Firecrawl', requiresApiKey: true },
   ];
 
   const handleMethodToggle = (methodId) => {
-    setSelectedMethods(prev => ({
+    setSelectedMethods((prev) => ({
       ...prev,
-      [methodId]: !prev[methodId]
+      [methodId]: !prev[methodId],
     }));
   };
 
-
-
-
-  const handleClear = () => {
-    setUrl('');
-    setResults({});
-    setError(null);
-    setIsLoading(false);
-    // Notice we do NOT reset apiKey or selectedMethods,
-    // so the Firecrawl key and checkboxes remain as they are
-  };
-  
-
-  
   const handleScrape = async () => {
     if (!url) {
       setError('Please enter a URL');
@@ -53,136 +44,80 @@ function App() {
     setError(null);
 
     try {
-      // Handle crawl4ai
+      // 1) crawl4ai
       if (selectedMethods.crawl4ai) {
-        const response = await fetch('http://localhost:8000/api/crawl4ai', {
+        const response = await fetch(`${BASE_URL}/api/crawl4ai`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url }),
         });
-
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(errorData.detail || 'Server error');
         }
-
         const data = await response.json();
-        setResults(prev => ({
-          ...prev,
-          crawl4ai: data
-        }));
+        setResults((prev) => ({ ...prev, crawl4ai: data }));
       }
 
-
-
-
-
-
-      // Handle Scrapy
+      // 2) scrapy
       if (selectedMethods.scrapy) {
-        const response = await fetch('http://localhost:8000/api/scrapy', {
+        const response = await fetch(`${BASE_URL}/api/scrapy`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url }),
         });
-
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(errorData.detail || 'Server error');
         }
-
         const data = await response.json();
-        setResults(prev => ({
-          ...prev,
-          scrapy: data
-        }));
+        setResults((prev) => ({ ...prev, scrapy: data }));
       }
 
-
-
-
-
-      // In App.jsx, inside handleScrape:
+      // 3) beautifulSoup
       if (selectedMethods.beautifulSoup) {
-        const response = await fetch('http://localhost:8000/api/beautifulSoup', {
+        const response = await fetch(`${BASE_URL}/api/beautifulSoup`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url }),
         });
-
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(errorData.detail || 'Server error');
         }
-
         const data = await response.json();
-        setResults(prev => ({
-          ...prev,
-          beautifulSoup: data
-        }));
+        setResults((prev) => ({ ...prev, beautifulSoup: data }));
       }
 
-
-
-
-
-
+      // 4) crawl4aiFile
       if (selectedMethods.crawl4aiFile) {
-        const response = await fetch('http://localhost:8000/api/crawl4aiFile', {
+        const response = await fetch(`${BASE_URL}/api/crawl4aiFile`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url }),
         });
-
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(errorData.detail || 'Server error');
         }
-
         const data = await response.json();
-        setResults(prev => ({
-          ...prev,
-          crawl4aiFile: data
-        }));
+        setResults((prev) => ({ ...prev, crawl4aiFile: data }));
       }
 
-
-
-
+      // 5) firecrawl
       if (selectedMethods.firecrawl) {
-        // We must send both the URL and the apiKey
-        const response = await fetch('http://localhost:8000/api/firecrawl', {
+        const response = await fetch(`${BASE_URL}/api/firecrawl`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            url,
-            apiKey
-          }),
+          body: JSON.stringify({ url, apiKey }),
         });
-      
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(errorData.detail || 'Server error');
         }
-      
         const data = await response.json();
-        setResults(prev => ({
-          ...prev,
-          firecrawl: data
-        }));
+        setResults((prev) => ({ ...prev, firecrawl: data }));
       }
-      
-
-
-
-
-
     } catch (err) {
       console.error('Error details:', err);
       setError('Failed to fetch results: ' + err.message);
@@ -191,12 +126,19 @@ function App() {
     }
   };
 
+  // Clear only URL, results, and error (keep the checkboxes and API key)
+  const handleClear = () => {
+    setUrl('');
+    setResults({});
+    setError(null);
+    setIsLoading(false);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-lg p-6">
-        <h1 className="text-2xl font-bold text-blue-600 mb-6">Web Scraper</h1>
-        
+        <h1 className="text-2xl font-bold text-blue-600 mb-6">Local Web Scraper</h1>
+
         {/* URL Input */}
         <div className="mb-6">
           <input
@@ -229,7 +171,7 @@ function App() {
           </div>
         </div>
 
-        {/* API Key Input */}
+        {/* API Key (for Firecrawl) */}
         {selectedMethods.firecrawl && (
           <div className="mb-6">
             <input
@@ -249,25 +191,24 @@ function App() {
           </div>
         )}
 
-        {/* Scrape Button */}
-        <button
-          onClick={handleScrape}
-          disabled={isLoading || !Object.values(selectedMethods).some(Boolean)}
-          className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isLoading ? 'Scraping...' : 'Start Scraping'}
-        </button>
+        {/* Action Buttons: Scrape & Clear */}
+        <div className="flex space-x-2">
+          <button
+            onClick={handleScrape}
+            disabled={isLoading || !Object.values(selectedMethods).some(Boolean)}
+            className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isLoading ? 'Scraping...' : 'Start Scraping'}
+          </button>
 
-        <button
-          onClick={handleClear}
-          disabled={isLoading}
-          className="flex-1 bg-gray-300 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Clear
-        </button>
-
-
-
+          <button
+            onClick={handleClear}
+            disabled={isLoading}
+            className="flex-1 bg-gray-300 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Clear
+          </button>
+        </div>
 
         {/* Results Display */}
         {Object.entries(results).map(([method, data]) => (
@@ -276,7 +217,10 @@ function App() {
               <h3 className="text-lg font-medium">{method} Results</h3>
               <button
                 onClick={() => {
-                  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                  const blob = new Blob(
+                    [JSON.stringify(data, null, 2)],
+                    { type: 'application/json' }
+                  );
                   const url = window.URL.createObjectURL(blob);
                   const a = document.createElement('a');
                   a.href = url;
